@@ -75,6 +75,9 @@ header{display:flex;flex-direction:column;align-items:center;text-align:center;g
 .item .name small{display:block;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
 .item .calc{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .item.used .calc{color:var(--accent);font-weight:600}
+.giftrow{background:var(--sun-soft);border-radius:14px;padding-inline:8px;border-top:0;margin-top:2px}
+.giftrow .name b{color:var(--sun-fg)}
+.giftrow .free{font-weight:800;color:var(--sun-fg);font-size:15px;padding-right:6px;font-variant-numeric:tabular-nums}
 .gift{display:inline-block;margin-top:3px;background:var(--sun-soft);color:var(--sun-fg);border-radius:8px;padding:1px 8px;font-size:12px;font-weight:600}
 .step{display:flex;align-items:center;gap:4px}
 .step button{width:38px;height:38px;border-radius:50%;border:0;background:var(--accent-soft);color:var(--accent);font:700 20px/1 var(--font);cursor:pointer}
@@ -230,7 +233,7 @@ const CONFIG = {
     { id: "small", title: "1 gia đình", desc: "Tối đa 4 người", price: 1000000 },
     { id: "large", title: "Trên 4 người", desc: "Nhóm đông, cả căn", price: 2000000 }
   ],
-  // stock: số lượng để sẵn. promo: true = mua 5 tặng 1
+  // stock: số lượng để sẵn. promo: true = chọn 5 tặng 1
   groups: [
     { title: "Đồ uống", items: [
       { name: "Bia Heineken",          unit: "lon",  price: 20000, stock: 20, icon: "can",    color: "#1f8a3b" },
@@ -245,7 +248,7 @@ const CONFIG = {
       { name: "Mì Omachi",             unit: "gói",  price: 10000, stock: 10, icon: "bowl",   color: "#c2412d" },
       { name: "Bún / Phở ăn liền",     unit: "gói",  price: 10000, stock: 10, icon: "bowl",   color: "#5c8f2a" }
     ]},
-    { title: "Đồ bếp Made in Brazil", promo: "Mua 5 tặng 1", items: [
+    { title: "Đồ bếp Made in Brazil", promo: "Chọn 5 tặng 1", items: [
       { name: "Set 7 dụng cụ làm bếp", unit: "set",  price: 150000, stock: 12, icon: "kitchen", color: "#7a4fb3", promo: true },
       { name: "Bộ dao dĩa bàn ăn Tulum", unit: "bộ", price: 250000, stock: 6,  icon: "cutlery", color: "#2b6c8f", promo: true }
     ]}
@@ -286,12 +289,21 @@ $("items").innerHTML = CONFIG.groups.map(g => `<div class="grp"><h3>${g.title}${
         <input id="item-${i}" type="number" inputmode="numeric" min="0" max="${it.stock}" aria-label="${it.name}">
         <button type="button" data-t="item" data-i="${i}" data-d="1" aria-label="Thêm ${it.name}">+</button>
       </div>
-    </div>`; }).join("") + `</div>`).join("");
+    </div>` + (it.promo ? `
+    <div class="item giftrow" id="giftrow-${i}" hidden>
+      ${icon(it)}
+      <div class="name"><b>Quà tặng: ${it.name}</b><small>0đ · tự thêm khi chọn đủ 5 ${it.unit}</small></div>
+      <div class="free" id="free-${i}"></div>
+    </div>` : ""); }).join("") + `</div>`).join("");
 
-const shown = i => state.mode === "left" ? ITEMS[i].stock - state.used[i] : state.used[i];
+// used[i] = tổng số đã lấy (kể cả quà tặng). Đồ bếp: chọn 5 tặng 1, quà tự cộng thêm.
+const withGift = (it, v) => it.promo ? v + Math.floor(v / 5) : v;
+const shown = i => state.mode === "left" ? ITEMS[i].stock - state.used[i] : paid(ITEMS[i], state.used[i]);
 function setShown(i, v) {
-  const s = ITEMS[i].stock; v = Math.min(s, Math.max(0, v));
-  state.used[i] = state.mode === "left" ? s - v : v;
+  const it = ITEMS[i], s = it.stock; v = Math.max(0, v);
+  if (state.mode === "left") { state.used[i] = s - Math.min(s, v); return; }
+  while (v > 0 && withGift(it, v) > s) v--;
+  state.used[i] = withGift(it, v);
 }
 function setMode(m) {
   state.mode = m;
@@ -330,7 +342,7 @@ const paid = (it, q) => it.promo ? q - Math.floor(q / 6) : q;
 function totals() {
   const room = CONFIG.rooms.find(r => r.id === state.room);
   const roomTotal = room.price * state.nights;
-  const lines = ITEMS.map((it, i) => { const q = state.used[i], p = paid(it, q); return { ...it, q, free: q - p, sum: it.price * p }; }).filter(l => l.q > 0);
+  const lines = ITEMS.map((it, i) => { const t = state.used[i], p = paid(it, t); return { ...it, q: p, free: t - p, sum: it.price * p }; }).filter(l => l.q > 0);
   const goods = lines.reduce((a, l) => a + l.sum, 0);
   const other = Math.max(0, parseInt($("other").value) || 0);
   return { room, roomTotal, lines, goods, other, total: roomTotal + goods + other };
@@ -358,19 +370,23 @@ function render() {
   $("roomSub").textContent = fmt(t.roomTotal);
   $("itemSub").textContent = fmt(t.goods);
   ITEMS.forEach((it, i) => {
-    const q = state.used[i], free = q - paid(it, q);
+    const q = state.used[i], p = paid(it, q), free = q - p;
     $("row-" + i).classList.toggle("used", q > 0);
     $("calc-" + i).textContent = state.mode === "left"
-      ? (q > 0 ? `→ đã dùng ${q} ${it.unit} · ${fmt(it.price * paid(it, q))}` : "")
-      : `còn lại ${it.stock - q} ${it.unit}${q > 0 ? " · " + fmt(it.price * paid(it, q)) : ""}`;
-    const g = $("gift-" + i);
-    if (it.promo && free > 0) { g.hidden = false; g.textContent = `Được tặng ${free} ${it.unit}`; }
-    else if (it.promo && q % 6 === 5 && q < it.stock) { g.hidden = false; g.textContent = `Lấy thêm 1 ${it.unit} được tặng miễn phí!`; }
-    else g.hidden = true;
+      ? (q > 0 ? `→ đã dùng ${p} ${it.unit}${free ? ` + tặng ${free}` : ""} · ${fmt(it.price * p)}` : "")
+      : `còn lại ${it.stock - q} ${it.unit}${free ? ` (đã trừ ${free} quà tặng)` : ""}${p > 0 ? " · " + fmt(it.price * p) : ""}`;
+    if (it.promo) {
+      $("giftrow-" + i).hidden = free === 0;
+      $("free-" + i).textContent = "× " + free;
+      const g = $("gift-" + i);
+      g.hidden = !(p % 5 === 4 && withGift(it, p + 1) <= it.stock);
+      g.textContent = `Hãy chọn thêm 1 ${it.unit} để được tặng 1 ${it.unit}!`;
+    }
   });
   $("bill").innerHTML =
     `<div class="l"><span>Lưu trú · ${t.room.title} × ${state.nights} đêm</span><span>${fmt(t.roomTotal)}</span></div>` +
-    t.lines.map(l => `<div class="l"><span>${l.name} × ${l.q}${l.free ? ` (tặng ${l.free})` : ""}</span><span>${fmt(l.sum)}</span></div>`).join("") +
+    t.lines.map(l => `<div class="l"><span>${l.name} × ${l.q}</span><span>${fmt(l.sum)}</span></div>` +
+      (l.free ? `<div class="l"><span>Quà tặng: ${l.name} × ${l.free}</span><span>0đ</span></div>` : "")).join("") +
     (t.other ? `<div class="l"><span>Khoản khác</span><span>${fmt(t.other)}</span></div>` : "") +
     `<div class="l t"><span>Tổng cộng</span><span>${fmt(t.total)}</span></div>`;
   $("barTotal").textContent = fmt(t.total);
@@ -392,7 +408,7 @@ function billText() {
   const out = [`PHIẾU TỔNG KẾT ${CONFIG.houseName.toUpperCase()}`, "Thời gian: " + new Date().toLocaleString("vi-VN"),
     "Khách: " + ($("guest").value || "(chưa ghi)"), "SĐT: " + ($("phone").value || "(chưa ghi)"),
     `Lưu trú (${t.room.title}) × ${state.nights} đêm: ${fmt(t.roomTotal)}`];
-  t.lines.forEach(l => out.push(`${l.name} × ${l.q}${l.free ? ` (tặng ${l.free})` : ""}: ${fmt(l.sum)}`));
+  t.lines.forEach(l => { out.push(`${l.name} × ${l.q}: ${fmt(l.sum)}`); if (l.free) out.push(`Quà tặng: ${l.name} × ${l.free}: 0đ`); });
   if (t.other) out.push("Khoản khác: " + fmt(t.other));
   out.push("TỔNG: " + fmt(t.total));
   return out.join("\n");
