@@ -154,8 +154,8 @@ footer .logo{width:120px;opacity:.8}
   <section class="sec">
     <h2><span class="h"><span class="n">2</span>Đồ đã dùng</span><span class="sub" id="itemSub">0đ</span></h2>
     <div class="seg" role="group" aria-label="Cách đếm">
-      <button type="button" id="modeLeft" aria-pressed="true">Đếm số còn lại</button>
-      <button type="button" id="modeUsed" aria-pressed="false">Đếm số đã dùng</button>
+      <button type="button" id="modeUsed" aria-pressed="true">Đếm số đã dùng</button>
+      <button type="button" id="modeLeft" aria-pressed="false">Đếm số còn lại</button>
     </div>
     <p class="hint" id="modeHint"></p>
     <div id="items"></div>
@@ -213,7 +213,7 @@ footer .logo{width:120px;opacity:.8}
 /* ===================== CHỦ NHÀ SỬA Ở ĐÂY ===================== */
 const CONFIG = {
   houseName: "Tôt-Lam",
-  address: "PB21-36 Vinhomes Ocean Parc 3",
+  address: "PB21-36 Vinhomes Ocean Park 3",
   bank: {
     bin: "970415",                  // VietinBank
     bankName: "VietinBank",
@@ -256,7 +256,7 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 const fmt = n => n.toLocaleString("vi-VN") + "đ";
 const ITEMS = CONFIG.groups.flatMap(g => g.items);
-const state = { room: CONFIG.rooms[0].id, nights: 1, mode: "left", used: ITEMS.map(() => 0) };
+const state = { room: CONFIG.rooms[0].id, nights: 1, mode: "used", used: ITEMS.map(() => 0) };
 
 const ICONS = {
   can: c => `<rect x="9" y="6" width="14" height="21" rx="3" fill="${c}"/><rect x="10" y="4" width="12" height="3" rx="1.5" fill="${c}" opacity=".6"/><rect x="9" y="12" width="14" height="7" fill="#fff" opacity=".85"/><circle cx="16" cy="15.5" r="2" fill="${c}"/>`,
@@ -440,7 +440,7 @@ $("copyBill").addEventListener("click", () => copy(billText(), "Đã sao chép p
 $("goPay").addEventListener("click", () => $("pay").scrollIntoView({ behavior: "smooth", block: "start" }));
 ["guest", "phone", "other"].forEach(id => $(id).addEventListener("input", render));
 
-setMode("left");
+setMode("used");
 if (!window.qrcode) $("qr").textContent = "Không tải được mã QR. Vui lòng chuyển khoản theo thông tin bên dưới.";
 </script>
 </body>
